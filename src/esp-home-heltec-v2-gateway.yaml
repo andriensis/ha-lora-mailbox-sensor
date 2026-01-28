@@ -1,0 +1,268 @@
+esphome:
+  name: esp-lora-gateway
+  friendly_name: esp-lora-gateway
+  on_boot:
+    priority: -100
+    then:
+      - lambda: |-
+          // Restore values from preferences
+          bool contact_state;
+          uint8_t battery;
+          float voltage, rssi, snr;
+          int last_seen;
+          
+          if (id(pref).load(&contact_state)) {
+            id(mailbox_contact).publish_state(contact_state);
+          }
+          if (id(pref_battery).load(&battery)) {
+            id(mailbox_battery).publish_state(battery);
+          }
+          if (id(pref_voltage).load(&voltage)) {
+            id(mailbox_voltage).publish_state(voltage);
+          }
+          if (id(pref_rssi).load(&rssi)) {
+            id(mailbox_rssi).publish_state(rssi);
+          }
+          if (id(pref_snr).load(&snr)) {
+            id(mailbox_snr).publish_state(snr);
+          }
+          if (id(pref_last_seen).load(&last_seen)) {
+            id(mailbox_last_seen).publish_state(last_seen);
+          }
+
+esp32:
+  board: heltec_wifi_lora_32_V2
+  framework:
+    type: arduino
+
+logger:
+  level: DEBUG
+  logs:
+    sx127x: DEBUG
+
+preferences:
+  flash_write_interval: 1min
+
+globals:
+  - id: pref
+    type: ESPPreferenceObject
+    restore_value: no
+    initial_value: 'global_preferences->make_preference<bool>(fnv1_hash("contact"))'
+  
+  - id: pref_battery
+    type: ESPPreferenceObject
+    restore_value: no
+    initial_value: 'global_preferences->make_preference<uint8_t>(fnv1_hash("battery"))'
+  
+  - id: pref_voltage
+    type: ESPPreferenceObject
+    restore_value: no
+    initial_value: 'global_preferences->make_preference<float>(fnv1_hash("voltage"))'
+  
+  - id: pref_rssi
+    type: ESPPreferenceObject
+    restore_value: no
+    initial_value: 'global_preferences->make_preference<float>(fnv1_hash("rssi"))'
+  
+  - id: pref_snr
+    type: ESPPreferenceObject
+    restore_value: no
+    initial_value: 'global_preferences->make_preference<float>(fnv1_hash("snr"))'
+  
+  - id: pref_last_seen
+    type: ESPPreferenceObject
+    restore_value: no
+    initial_value: 'global_preferences->make_preference<int>(fnv1_hash("last_seen"))'
+
+api:
+  encryption:
+    key: "ESP_HOME_ENCRYPTION_KEY" # TODO: change this with your esp home encryption key
+    
+  services:
+    - service: set_mailbox_contact
+      variables:
+        state: bool
+      then:
+        - lambda: |-
+            id(pref).save(&state);
+            id(mailbox_contact).publish_state(state);
+
+    - service: set_mailbox_battery
+      variables:
+        value: float
+      then:
+        - lambda: |-
+            uint8_t battery_val = (uint8_t)value;
+            id(pref_battery).save(&battery_val);
+            id(mailbox_battery).publish_state(value);
+
+    - service: set_mailbox_voltage
+      variables:
+        value: float
+      then:
+        - lambda: |-
+            id(pref_voltage).save(&value);
+            id(mailbox_voltage).publish_state(value);
+
+    - service: set_mailbox_rssi
+      variables:
+        value: float
+      then:
+        - lambda: |-
+            id(pref_rssi).save(&value);
+            id(mailbox_rssi).publish_state(value);
+
+    - service: set_mailbox_snr
+      variables:
+        value: float
+      then:
+        - lambda: |-
+            id(pref_snr).save(&value);
+            id(mailbox_snr).publish_state(value);
+
+    - service: set_mailbox_last_seen
+      variables:
+        value: int
+      then:
+        - lambda: |-
+            id(pref_last_seen).save(&value);
+            id(mailbox_last_seen).publish_state(value);
+
+ota:
+  - platform: esphome
+    password: "58e9cfd894c6e85b6211fcefcb7fb32c"
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "Esp-Lora-Gateway"
+    password: "4Ke7kAYj8Ne2"
+
+captive_portal:
+
+status_led:
+  pin:
+    number: GPIO25
+    inverted: true
+
+time:
+  - platform: homeassistant
+    id: homeassistant_time
+
+spi:
+  clk_pin: GPIO5
+  miso_pin: GPIO19
+  mosi_pin: GPIO27
+
+sx127x:
+  cs_pin: GPIO18
+  rst_pin: GPIO14
+  dio0_pin: GPIO26
+  frequency: 868000000 # you should change this if outside EU
+  modulation: LORA
+  shaping: GAUSSIAN_BT_1_0
+  bandwidth: 125_0kHz
+  spreading_factor: 12
+  coding_rate: CR_4_8
+  sync_value: 0x12
+  preamble_size: 8
+  crc_enable: true
+  pa_power: 17
+
+  on_packet:
+    then:
+      - lambda: |-
+          ESP_LOGD("lora", "Received packet: %s", format_hex(x).c_str());
+
+          if (x.size() < 11) return;
+
+          uint8_t device_id = x[0];
+          uint8_t flags = x[3];
+          bool contact_open = !(flags & 0x01);
+          uint8_t battery = x[4];
+          float voltage = ((x[5] << 8) | x[6]) / 1000.0f;
+
+          if (device_id == 1) { 
+            // Save to preferences
+            id(pref).save(&contact_open);
+            id(pref_battery).save(&battery);
+            id(pref_voltage).save(&voltage);
+            id(pref_rssi).save(&rssi);
+            id(pref_snr).save(&snr);
+            
+            // Publish states
+            id(mailbox_contact).publish_state(contact_open);
+            id(mailbox_battery).publish_state(battery);
+            id(mailbox_voltage).publish_state(voltage);
+            id(mailbox_rssi).publish_state(rssi);
+            id(mailbox_snr).publish_state(snr);
+
+            auto now = id(homeassistant_time).now();
+            if (now.is_valid()) {
+              int timestamp = now.timestamp;
+              id(pref_last_seen).save(&timestamp);
+              id(mailbox_last_seen).publish_state(timestamp);
+            }
+          }
+
+binary_sensor:
+  - platform: template
+    name: "Mailbox Contact"
+    id: mailbox_contact
+    device_class: door
+    icon: mdi:mailbox
+
+  - platform: status
+    name: "LoRa Gateway Status"
+
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      name: "LoRa Gateway IP Address"
+    ssid:
+      name: "LoRa Gateway SSID"
+
+sensor:
+  - platform: template
+    name: "Mailbox Battery"
+    id: mailbox_battery
+    unit_of_measurement: "%"
+    device_class: battery
+    state_class: measurement
+    accuracy_decimals: 0
+
+  - platform: template
+    name: "Mailbox Voltage"
+    id: mailbox_voltage
+    unit_of_measurement: "V"
+    device_class: voltage
+    state_class: measurement
+    accuracy_decimals: 2
+
+  - platform: template
+    name: "Mailbox RSSI"
+    id: mailbox_rssi
+    unit_of_measurement: "dBm"
+    device_class: signal_strength
+    state_class: measurement
+    accuracy_decimals: 1
+
+  - platform: template
+    name: "Mailbox SNR"
+    id: mailbox_snr
+    unit_of_measurement: "dB"
+    state_class: measurement
+    accuracy_decimals: 1
+
+  - platform: template
+    name: "Mailbox Last Seen"
+    id: mailbox_last_seen
+    device_class: timestamp
+
+  - platform: uptime
+    name: "LoRa Gateway Uptime"
+
+  - platform: wifi_signal
+    name: "LoRa Gateway WiFi Signal"
+    update_interval: 60s
