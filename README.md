@@ -29,6 +29,7 @@ Just connect your reed contact sensor to GND and PIN28 of your Heltec nrf t114. 
 
 - Make sure to solder or attach the contact sensor to your Heltec nrf t114
 - Install the ESP Home configuration in [esp-home-heltec-v2-gateway.yaml](https://github.com/andriensis/ha-lora-mailbox-sensor/blob/main/src/esp-home-heltec-v2-gateway.yaml "esp-home-heltec-v2-gateway.yaml") on our Heltec V2
+Make sure the change the **ESP_HOME_ENCRYPTION_KEY** and **OTA_PASSWORD** values
 - Install the arduino code found in [mailbox-contact-sensor-heltec-nrf-t114.ino](https://github.com/andriensis/ha-lora-mailbox-sensor/blob/main/src/mailbox-contact-sensor-heltec-nrf-t114.ino "mailbox-contact-sensor-heltec-nrf-t114.ino") on your Heltec nrf t114
 - Power on the devices
 - Make sure when the contact sensor changes state a message is sent to your gateway (check the Esp Home logs)
