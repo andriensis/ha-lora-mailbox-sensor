@@ -43,3 +43,5 @@ Make sure the change the **ESP_HOME_ENCRYPTION_KEY** and **OTA_PASSWORD** values
 ## Why not Meshtastic?
 I actually already have a pretty stable Meshtastic network around my house. However I couldn't really use because deep sleep is not properly supported on nRF52840 devices. I wanted my battery to last a long time (months, maybe even more) and this was just not possible with Meshtastic.
 
+## How long will the batteries last?
+I have been testing this for a few weeks with x2 18650 batteries. Theoretical battery life should be >1 year. Some normal discharge will however happen due to environment conditions and so on. But overall I would say a battery life of a few months is definitely guaranteed. Also if you use 18650 you can just open the mailbox and swap them once they're discharged.
