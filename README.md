@@ -40,3 +40,6 @@ Make sure the change the **ESP_HOME_ENCRYPTION_KEY** and **OTA_PASSWORD** values
 
 ![Picture of the mailbox contact sensor in the mailbox](https://github.com/andriensis/ha-lora-mailbox-sensor/blob/main/mailbox-sensor.jpg?raw=true)
 
+## Why not Meshtastic?
+I actually already have a pretty stable Meshtastic network around my house. However I couldn't really use because deep sleep is not properly supported on nRF52840 devices. I wanted my battery to last a long time (months, maybe even more) and this was just not possible with Meshtastic.
+
